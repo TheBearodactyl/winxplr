@@ -77,20 +77,6 @@ fn build_entry(de: &walkdir::DirEntry) -> Result<Entry> {
     })
 }
 
-pub fn root_dirs() -> Vec<PathBuf> {
-    #[cfg(windows)]
-    {
-        (b'A'..=b'Z')
-            .map(|c| PathBuf::from(format!("{}:\\", c as char)))
-            .filter(|p| p.exists())
-            .collect()
-    }
-    #[cfg(not(windows))]
-    {
-        vec![PathBuf::from("/")]
-    }
-}
-
 pub fn fmt_size(bytes: u64) -> String {
     const KB: u64 = 1_024;
     const MB: u64 = KB * 1_024;
@@ -101,4 +87,75 @@ pub fn fmt_size(bytes: u64) -> String {
         b if b >= KB => format!("{:.1} KB", b as f64 / KB as f64),
         b => format!("{b} B"),
     }
+}
+
+pub fn root_dirs() -> Vec<PathBuf> {
+    #[cfg(windows)]
+    {
+        (b'A'..=b'Z')
+            .map(|c| PathBuf::from(format!("{}:\\", c as char)))
+            .filter(|p| p.exists())
+            .collect()
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let mut dirs = vec![PathBuf::from("/")];
+        if let Ok(rd) = std::fs::read_dir("/Volumes") {
+            for e in rd.flatten() {
+                let p = e.path();
+                if p.is_dir() && p != PathBuf::from("/Volumes") {
+                    dirs.push(p);
+                }
+            }
+        }
+        dirs
+    }
+    #[cfg(target_os = "linux")]
+    {
+        linux_root_dirs()
+    }
+    #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
+    {
+        vec![PathBuf::from("/")]
+    }
+}
+
+fn linux_root_dirs() -> Vec<PathBuf> {
+    let mut dirs: Vec<PathBuf> = vec![PathBuf::from("/")];
+
+    if let Ok(mounts) = std::fs::read_to_string("/proc/mounts") {
+        for line in mounts.lines() {
+            let mut cols = line.splitn(4, ' ');
+            let device = cols.next().unwrap_or("");
+            let mount = cols.next().unwrap_or("");
+
+            if mount.is_empty() || mount == "/" {
+                continue;
+            }
+
+            let path = PathBuf::from(mount);
+
+            if !path.exists() || dirs.contains(&path) {
+                continue;
+            }
+
+            let is_block_dev = device.starts_with("/dev/sd")
+                || device.starts_with("/dev/nvme")
+                || device.starts_with("/dev/mmcblk")
+                || device.starts_with("/dev/vd")
+                || device.starts_with("/dev/hd")
+                || device.starts_with("/dev/mapper/");
+
+            let is_user_mount = mount.starts_with("/media/")
+                || mount.starts_with("/mnt/")
+                || mount.starts_with("/run/media/");
+
+            if is_block_dev || is_user_mount {
+                dirs.push(path);
+            }
+        }
+    }
+
+    dirs[1..].sort();
+    dirs
 }

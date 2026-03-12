@@ -3,6 +3,7 @@ use {
         fs::{self, Entry},
         ops,
     },
+    constants::*,
     context_menu::{ContextTarget, MenuAction, MenuItem, items_for},
     gpui::{
         App, AppContext, Bounds, ClickEvent, ClipboardItem, Context, ElementId, FocusHandle,
@@ -15,70 +16,8 @@ use {
     tracing::{error, info},
 };
 
+pub mod constants;
 pub mod context_menu;
-
-const BG_TOOLBAR: u32 = 0x1E1E2E;
-const BG_SIDEBAR: u32 = 0x181825;
-const BG_MAIN: u32 = 0x11111B;
-const BG_ROW_HOVER: u32 = 0x313244;
-const BG_ROW_SEL: u32 = 0x45475A;
-const COL_BORDER: u32 = 0x313244;
-const COL_TEXT: u32 = 0xCDD6F4;
-const COL_MUTED: u32 = 0x6C7086;
-const COL_DIR: u32 = 0x89B4FA;
-const COL_FILE: u32 = 0xA6E3A1;
-const COL_ACCENT: u32 = 0xCBA6F7;
-const BG_MENU: u32 = 0x24273A;
-const BG_MENU_HOVER: u32 = 0x363A4F;
-const COL_SEP: u32 = 0x494D64;
-const COL_DANGER: u32 = 0xED8796;
-const BG_MODAL: u32 = 0x1E1E2E;
-const BG_INPUT: u32 = 0x11111B;
-const COL_SUCCESS: u32 = 0xA6E3A1;
-const COL_BTN_DEL: u32 = 0xF38BA8;
-const BG_BTN_DEL: u32 = 0x45002A;
-const BG_BTN_OK: u32 = 0x003020;
-const COL_BTN_OK: u32 = 0xA6E3A1;
-const BG_BACKDROP: u32 = 0x00000088;
-const BG_PREVIEW: u32 = 0x13131F;
-const COL_PROPS_KEY: u32 = 0x89DCEB;
-const COL_SECTION: u32 = 0x585B70;
-
-const ICO_FOLDER: &str = "";
-const ICO_FILE: &str = "";
-const ICO_DRIVE: &str = "";
-const ICO_BACK: &str = "";
-const ICO_UP: &str = "";
-const ICO_WARN: &str = "";
-const ICO_CHECK: &str = "";
-const ICO_RENAME: &str = "";
-const ICO_DELETE: &str = "";
-
-const ICO_NEW_FOLDER: &str = " ";
-const ICO_NEW_FILE: &str = " ";
-const ICO_REFRESH: &str = " ";
-const ICO_EYE: &str = " ";
-const ICO_EYE_SLASH: &str = " ";
-const ICO_INFO: &str = " ";
-const ICO_QUIT: &str = " ";
-const ICO_SIDEBAR_OPEN: &str = " ";
-const ICO_SIDEBAR_CLOSE: &str = " ";
-const ICO_PREVIEW_TOGGLE: &str = " ";
-const ICO_HOME: &str = " ";
-const ICO_DESKTOP: &str = " ";
-const ICO_DOWNLOADS: &str = " ";
-const ICO_DOCUMENTS: &str = "󰈙 ";
-const ICO_PICTURES: &str = " ";
-const ICO_MUSIC: &str = "󰝚 ";
-const ICO_VIDEOS: &str = " ";
-const ICO_ARROW_RIGHT: &str = " ";
-const ICO_ARROW_DOWN: &str = " ";
-const ICO_BIN: &str = " ";
-const ICO_CODE: &str = "󰅩 ";
-const ICO_IMG: &str = "󰋩 ";
-const ICO_ARCHIVE: &str = "󰀼 ";
-const ICO_PDF: &str = "󰈦 ";
-const FONT_FAMILY: &str = "0xProto Nerd Font";
 
 #[derive(Clone)]
 enum Modal {
@@ -889,23 +828,24 @@ fn render_context_menu(
         .rounded_md()
         .py_1()
         .min_w(px(210.0))
-        .shadow_lg()
-        .on_mouse_down(
-            MouseButton::Left,
-            cx.listener(|_, _: &MouseDownEvent, _, cx| {
-                cx.stop_propagation();
-            }),
-        )
-        .on_mouse_down(
-            MouseButton::Right,
-            cx.listener(|_, _: &MouseDownEvent, _, cx| {
-                cx.stop_propagation();
-            }),
-        );
+        .shadow_lg();
 
     for (i, item) in items.iter().enumerate() {
         col = match item {
-            MenuItem::Separator => col.child(div().h(px(1.0)).mx_2().my_1().bg(rgb(COL_SEP))),
+            MenuItem::Separator => col.child(
+                div()
+                    .id(ElementId::Name(format!("ctx-sep-{i}").into()))
+                    .h(px(1.0))
+                    .mx_2()
+                    .my_1()
+                    .bg(rgb(COL_SEP))
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(|_, _: &MouseDownEvent, _, cx| {
+                            cx.stop_propagation();
+                        }),
+                    ),
+            ),
             MenuItem::Action(action) => {
                 let a = action.clone();
                 let t = target.clone();
@@ -921,6 +861,12 @@ fn render_context_menu(
                         .cursor_pointer()
                         .text_color(rgb(if danger { COL_DANGER } else { COL_TEXT }))
                         .hover(|d| d.bg(rgb(BG_MENU_HOVER)))
+                        .on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(|_, _: &MouseDownEvent, _, cx| {
+                                cx.stop_propagation();
+                            }),
+                        )
                         .on_click(cx.listener(move |this, _: &ClickEvent, window, cx| {
                             this.execute_action(a.clone(), t.clone(), window, cx);
                         }))
@@ -1781,10 +1727,12 @@ where
         .justify_center()
         .rounded_md()
         .cursor_pointer()
+        .text_color(rgb(if enabled { COL_TEXT } else { COL_MUTED }))
         .when(enabled, |d| {
-            d.hover(|d| d.bg(rgb(BG_ROW_HOVER))).on_click(handler)
+            d.hover(|d| d.bg(rgb(BG_ROW_HOVER)).text_color(rgb(COL_ACCENT)))
+                .on_click(handler)
         })
-        .when(!enabled, |d| d.opacity(0.3))
+        .when(!enabled, |d| d.opacity(0.4).cursor_default())
         .child(icon)
 }
 
