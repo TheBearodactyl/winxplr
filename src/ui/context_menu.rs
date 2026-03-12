@@ -29,6 +29,8 @@ pub enum MenuItem {
 pub enum MenuAction {
     Open,
     OpenInExplorer,
+    BrowseZip,
+    ExtractHere,
     CopyPath,
     CopyName,
     NavigateTo,
@@ -45,6 +47,8 @@ impl MenuAction {
         match self {
             MenuAction::Open => "Open",
             MenuAction::OpenInExplorer => "Show in explorer",
+            MenuAction::BrowseZip => "Browse archive",
+            MenuAction::ExtractHere => "Extract here",
             MenuAction::CopyPath => "Copy path",
             MenuAction::CopyName => "Copy name",
             MenuAction::NavigateTo => "Navigate here",
@@ -61,6 +65,8 @@ impl MenuAction {
         match self {
             MenuAction::Open => "\u{f115} ",
             MenuAction::OpenInExplorer => "\u{f07c} ",
+            MenuAction::BrowseZip => "\u{f53b} ",
+            MenuAction::ExtractHere => "\u{f56f} ",
             MenuAction::CopyPath => "\u{f0c5} ",
             MenuAction::CopyName => "\u{f02b} ",
             MenuAction::NavigateTo => "\u{f061} ",
@@ -76,18 +82,32 @@ impl MenuAction {
 
 pub fn items_for(target: &ContextTarget) -> Vec<MenuItem> {
     match target {
-        ContextTarget::File(_) => vec![
-            MenuItem::Action(MenuAction::Open),
-            MenuItem::Action(MenuAction::OpenInExplorer),
-            MenuItem::Separator,
-            MenuItem::Action(MenuAction::CopyPath),
-            MenuItem::Action(MenuAction::CopyName),
-            MenuItem::Separator,
-            MenuItem::Action(MenuAction::Rename),
-            MenuItem::Action(MenuAction::Delete),
-            MenuItem::Separator,
-            MenuItem::Action(MenuAction::Properties),
-        ],
+        ContextTarget::File(p) => {
+            let is_zip = p
+                .extension()
+                .map(|e| e.to_ascii_lowercase() == "zip")
+                .unwrap_or(false);
+            let mut items = vec![
+                MenuItem::Action(MenuAction::Open),
+                MenuItem::Action(MenuAction::OpenInExplorer),
+            ];
+            if is_zip {
+                items.push(MenuItem::Separator);
+                items.push(MenuItem::Action(MenuAction::BrowseZip));
+                items.push(MenuItem::Action(MenuAction::ExtractHere));
+            }
+            items.extend_from_slice(&[
+                MenuItem::Separator,
+                MenuItem::Action(MenuAction::CopyPath),
+                MenuItem::Action(MenuAction::CopyName),
+                MenuItem::Separator,
+                MenuItem::Action(MenuAction::Rename),
+                MenuItem::Action(MenuAction::Delete),
+                MenuItem::Separator,
+                MenuItem::Action(MenuAction::Properties),
+            ]);
+            items
+        }
         ContextTarget::Directory(_) => vec![
             MenuItem::Action(MenuAction::NavigateTo),
             MenuItem::Action(MenuAction::Open),
